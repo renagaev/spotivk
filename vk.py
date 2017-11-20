@@ -10,30 +10,37 @@ class VkUtil:
         self.session.auth()
         self.audio = VkAudio(self.session)
 
-    def get_music(self, vk_id, offset):
-        return self.audio.get(vk_id, offset)
 
 
-    async def get_music_by_id(self, vk_id, event_loop, queue):
 
-
+    async def get_music_by_id(self, vk_id: int, queue: asyncio.Queue):
+        loop = asyncio.get_event_loop()
         offset = 0
         while True:
-            furure = loop.
-            audios =
-            if not audios:
+            future = loop.run_in_executor(None, self.audio.get, vk_id, offset)
+            music = await future
+            if not music:
                 break
-            buffer.extend(audios)
-            offset += len(audios)
-            print(len(audios))
-        return music
+            queue.put(music)
+            offset += len(music)
 
-    def link_to_vk_id(self, link):
+        queue.put(None)
+
+
+    async def link_to_vk_id(self, link):
+
+        loop = asyncio.get_event_loop()
         short_name = link.split('/')[-1]
-        try:
+
+        def get_user_id():
             return self.api.users.get(user_ids=short_name, fields='id')[0]['id']
+        def get_group_id():
+            return self.api.groups.getById(group_id=short_name, fields='id')[0]['id']
+
+        try:
+            return await loop.run_in_executor(None, get_user_id)
         except vk_api.exceptions.ApiError:
             try:
-                return self.api.groups.getById(group_id=short_name, fields='id')[0]['id']
+                return await loop.run_in_executor(None, get_group_id)
             except vk_api.exceptions.ApiError:
                 return

@@ -2,7 +2,7 @@ from vk_api import VkApi
 from vk import VkUtil
 import os
 from pprint import pprint
-from spotipy import Spotify
+from spotipy.util import prompt_for_user_token
 
 # spotify config
 username = "rnagaev68"
@@ -31,41 +31,3 @@ if __name__ == '__main__':
     session.auth()
     audio = vk_api.audio.VkAudio(session)
 
-
-
-
-    async def get_all_music(vk_id, loop, buff):
-        offset = 0
-        while True:
-            music = await audio.get(owner_id=vk_id, offset=offset)
-
-            if music:
-                is_done = True
-                break
-            buff.extend(music)
-            offset += len(music)
-            print(len(buff))
-
-
-    async def print_buff(buff):
-        while True:
-            if buff:
-                async for _ in buff:
-                    a = buff.pop()
-                    pprint(str(len(buff)) + 'audios in buffer. Last =' + a['title'])
-            else:
-                if is_done:
-                    break
-                else:
-                    asyncio.sleep(1)
-
-
-    async def main():
-        buffe = []
-        coroutines = [get_all_music(183116683, buffe), print_buff(buffe)]
-        completed, pending = await asyncio.wait(coroutines)
-
-
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
-    loop.run_in_executor()

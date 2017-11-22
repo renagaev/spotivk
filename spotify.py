@@ -4,7 +4,6 @@ import asyncio
 from functools import partial
 
 
-
 class SpotifyTokenGetter(oauth2.SpotifyOAuth):
     def __init__(self, app_credentials: dict, username: str):
         scopes = ' '.join(['playlist-read-private',
@@ -26,9 +25,7 @@ class SpotifyTokenGetter(oauth2.SpotifyOAuth):
 
 
 class AsyncSpotify(spotipy.Spotify):
-    async def _get(self, url, args=None, payload=None, **kwargs):
+    async def _internal_call(self, method, url, payload, params):
         loop = asyncio.get_event_loop()
-        future = loop.run_in_executor(None, partial(super()._get(url, args=None, payload=None, **kwargs)))
+        future = loop.run_in_executor(None, partial(super()._internal_call(method, url, payload, params)))
         return await future
-
-    async def

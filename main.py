@@ -1,8 +1,8 @@
-from vk_api import VkApi
+import asyncio
 from vk import VkUtil
 import os
-from pprint import pprint
-from spotipy.util import prompt_for_user_token
+import concurrent.futures
+
 
 # spotify config
 username = "rnagaev68"
@@ -19,15 +19,26 @@ scopes = ' '.join(['playlist-read-private',
 vk_login = '89622334443'
 vk_pass = 'htyfnqaz'
 
+async def consumer(queue: asyncio.Queue):
+    num = 1
+    while True:
+        track = await queue.get()
+        if track is None:
+            break
+        artist = track['artist']
+        title = track['title']
+        print(f'Track {num}: {artist} --- {title}')
+        await asyncio.sleep(0.1)
+
 if __name__ == '__main__':
     if not os.path.exists('cache'):
         os.mkdir('cache')
-    import vk_api  # learn more: https://python.org/pypi/vk_api
-    import asyncio
+    me = VkUtil(vk_login, vk_pass)
 
-    login = '89622334443'
-    password = 'htyfnqaz'
-    session = vk_api.VkApi(login, password)
-    session.auth()
-    audio = vk_api.audio.VkAudio(session)
+    loop = asyncio.get_event_loop()
+    queue = asyncio.Queue(loop=loop)
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=2)
 
+    alil = asyncio.gather(me.get_music_by_id(79393429, queue, pool), consumer(queue))
+    loop.run_until_complete(alil)
+    loop.close()

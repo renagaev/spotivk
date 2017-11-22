@@ -1,7 +1,8 @@
 import vk_api
 from vk_api.audio import VkAudio
 import asyncio
-
+from functools import partial
+import concurrent.futures
 
 class VkUtil:
     def __init__(self, login: str, password: str):
@@ -10,34 +11,38 @@ class VkUtil:
         self.session.auth()
         self.audio = VkAudio(self.session)
 
-    async def get_music_by_id(self, vk_id: int, queue: asyncio.Queue):
+    async def get_music_by_id(self, vk_id: int, queue: asyncio.Queue, executor: concurrent.futures.ThreadPoolExecutor):
         loop = asyncio.get_event_loop()
         offset = 0
         while True:
-            future = loop.run_in_executor(None, self.audio.get, vk_id, offset)
+            future = loop.run_in_executor(executor, self.audio.get, vk_id, offset)
             music = await future
             if not music:
                 break
-            queue.put(music)
+
+            for i in music:
+
+                await queue.put(i)
+
+            print(queue.qsize())
             offset += len(music)
 
         queue.put(None)
+
 
     async def link_to_vk_id(self, link):
 
         loop = asyncio.get_event_loop()
         short_name = link.split('/')[-1]
 
-        def get_user_id():
-            return self.api.users.get(user_ids=short_name, fields='id')[0]['id']
-
-        def get_group_id():
-            return self.api.groups.getById(group_id=short_name, fields='id')[0]['id']
-
         try:
-            return await loop.run_in_executor(None, get_user_id)
+            response = await loop.run_in_executor(None,
+                                                  partial(self.api.groups.getById, group_id=short_name, fields='id'))
+            return response[0]['id']
         except vk_api.exceptions.ApiError:
             try:
-                return await loop.run_in_executor(None, get_group_id)
+                response = await loop.run_in_executor(None,
+                                                      partial(self.api.users.get, user_ids=short_name, fields='id'))
+                return response[0]['id']
             except vk_api.exceptions.ApiError:
                 return

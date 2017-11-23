@@ -15,5 +15,5 @@ class User(BaseModel):
     spotify_username = CharField()
 
 
-class Playlist(BaseModel)
+class Playlist(BaseModel):
     owner = ForeignKeyField(User, related_name='playlists')

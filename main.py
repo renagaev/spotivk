@@ -4,6 +4,7 @@ import os
 import concurrent.futures
 from spotify import SpotifyTokenGetter, AsyncSpotify
 from spotipy.oauth2 import SpotifyClientCredentials
+from pprint import pprint
 
 # spotify config
 app = dict(
@@ -26,21 +27,21 @@ vk_login = '89622334443'
 vk_pass = 'htyfnqaz'
 
 
-if False:
+if True:
     if not os.path.exists('cache'):
         os.mkdir('cache')
-    me = VkUtil(vk_login, vk_pass)
+    # me = VkUtil(vk_login, vk_pass)
 
     loop = asyncio.get_event_loop()
     queue = asyncio.Queue(loop=loop)
     pool = concurrent.futures.ThreadPoolExecutor(max_workers=4)
+    async def main():
+        sp = SpotifyTokenGetter(app, username)
+        token = sp.get_cached_token()
+        me = AsyncSpotify(pool, auth=token['access_token'], client_credentials_manager=app2)
+        pprint(await me.current_user_playlists())
 
-    alil = asyncio.gather(me.get_music_by_id(79393429, queue, pool), consumer(queue))
-
-    loop.run_until_complete(alil)
+    loop.run_until_complete(main())
     loop.close()
-if True:
-    sp = SpotifyTokenGetter(app, username)
-    token = sp.get_cached_token()
-    me = AsyncSpotify(auth=token['access_token'], client_credentials_manager=app2)
-    print(me.current_user())
+
+

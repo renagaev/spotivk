@@ -31,8 +31,11 @@ class AsyncSpotify(spotipy.Spotify):
 
     def __init__(self, executor, auth=None, requests_session=True,
                  client_credentials_manager=None, proxies=None, requests_timeout=None):
-        super().__init__(self, auth, requests_session,
-                         client_credentials_manager, proxies)
+
+        super().__init__(auth=auth, requests_session=requests_session,
+                         client_credentials_manager=client_credentials_manager, proxies=proxies,
+                         requests_timeout=requests_timeout)
+
         self.loop = asyncio.get_event_loop()
         self.executor = executor
 
@@ -45,9 +48,8 @@ class AsyncSpotify(spotipy.Spotify):
         return await self.loop.run_in_executor(self.executor, func)
 
     async def current_user_playlists(self, limit=50, offset=0):
-        func = partial(super().current_user_playlists(limit, offset))
+        func = partial(super().current_user_playlists, limit, offset)
         return await self.loop.run_in_executor(self.executor, func)
 
     async def current_user(self):
         return await self.loop.run_in_executor(self.executor, super().current_user)
-

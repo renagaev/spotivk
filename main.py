@@ -39,7 +39,8 @@ if True:
         sp = SpotifyTokenGetter(app, username)
         token = sp.get_cached_token()
         me = AsyncSpotify(pool, auth=token['access_token'], client_credentials_manager=app2)
-        pprint(await me.current_user_playlists())
+        result = await me.search('frozen madonna', market='us')
+        pprint(result['tracks']['items'][0])
 
     loop.run_until_complete(main())
     loop.close()

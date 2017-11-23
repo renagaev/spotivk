@@ -25,13 +25,10 @@ class SpotifyTokenGetter(oauth2.SpotifyOAuth):
 
 
 class AsyncSpotify(spotipy.Spotify):
-    '''
-    некоторые методы spotipy.Spotify в event_loop.run_in_executor()
-    '''
+
 
     def __init__(self, executor, auth=None, requests_session=True,
                  client_credentials_manager=None, proxies=None, requests_timeout=None):
-
         super().__init__(auth=auth, requests_session=requests_session,
                          client_credentials_manager=client_credentials_manager, proxies=proxies,
                          requests_timeout=requests_timeout)
@@ -43,9 +40,10 @@ class AsyncSpotify(spotipy.Spotify):
         func = partial(super().user_playlist_create, user, name, public)
         await self.loop.run_in_executor(self.executor, func)
 
-    async def search(self, q, limit=10, offset=0, type='track', market=None):
+    async def search_track(self, q, limit=10, offset=0, type='track', market=None):
         func = partial(super().search, q, limit, offset, type, market)
-        return await self.loop.run_in_executor(self.executor, func)
+        result = await self.loop.run_in_executor(self.executor, func)
+        return result['tracks']['items']
 
     async def current_user_playlists(self, limit=50, offset=0):
         func = partial(super().current_user_playlists, limit, offset)
@@ -53,3 +51,10 @@ class AsyncSpotify(spotipy.Spotify):
 
     async def current_user(self):
         return await self.loop.run_in_executor(self.executor, super().current_user)
+
+    async def user_playlist_add_tracks(self, playlist_id, tracks, user=None, position=None):
+        if user is None:
+            user = await self.current_user()
+            user = user['id']
+        func = partial(super().user_playlist_add_tracks, user, playlist_id, tracks, position)
+        await self.loop.run_in_executor(self.executor, func)

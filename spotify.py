@@ -25,7 +25,29 @@ class SpotifyTokenGetter(oauth2.SpotifyOAuth):
 
 
 class AsyncSpotify(spotipy.Spotify):
-    async def _internal_call(self, method, url, payload, params):
-        loop = asyncio.get_event_loop()
-        future = loop.run_in_executor(None, partial(super()._internal_call(method, url, payload, params)))
-        return await future
+    '''
+    некоторые методы spotipy.Spotify в event_loop.run_in_executor()
+    '''
+
+    def __init__(self, executor, auth=None, requests_session=True,
+                 client_credentials_manager=None, proxies=None, requests_timeout=None):
+        super().__init__(self, auth, requests_session,
+                         client_credentials_manager, proxies)
+        self.loop = asyncio.get_event_loop()
+        self.executor = executor
+
+    async def user_playlist_create(self, user, name, public=False):
+        func = partial(super().user_playlist_create, user, name, public)
+        await self.loop.run_in_executor(self.executor, func)
+
+    async def search(self, q, limit=10, offset=0, type='track', market=None):
+        func = partial(super().search, q, limit, offset, type, market)
+        return await self.loop.run_in_executor(self.executor, func)
+
+    async def current_user_playlists(self, limit=50, offset=0):
+        func = partial(super().current_user_playlists(limit, offset))
+        return await self.loop.run_in_executor(self.executor, func)
+
+    async def current_user(self):
+        return await self.loop.run_in_executor(self.executor, super().current_user)
+

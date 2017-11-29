@@ -25,7 +25,6 @@ class VkUtil:
             for i in music:
                 await queue.put(i)
 
-            print(queue.qsize())
             offset += len(music)
 
         queue.put(None)

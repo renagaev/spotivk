@@ -1,15 +1,11 @@
-
-from __future__ import print_function
 import base64
-import requests
 import os
 import json
 import time
 import sys
-
-# Workaround to support both python 2 & 3
-import six
-import six.moves.urllib.parse as urllibparse
+import asyncio
+import aiohttp
+import urllib
 
 
 class SpotifyOauthError(Exception):
@@ -17,7 +13,7 @@ class SpotifyOauthError(Exception):
 
 
 def _make_authorization_headers(client_id, client_secret):
-    auth_header = base64.b64encode(six.text_type(client_id + ':' + client_secret).encode('ascii'))
+    auth_header = base64.b64encode((client_id + ':' + client_secret).encode('ascii'))
     return {'Authorization': 'Basic %s' % auth_header.decode('ascii')}
 
 
@@ -52,7 +48,8 @@ class SpotifyClientCredentials(object):
         self.token_info = None
         self.proxies = proxies
 
-    def get_access_token(self):
+
+    async def get_access_token(self):
         """
         If a valid access token is in memory, returns it
         Else feches a new token and returns it
@@ -60,22 +57,24 @@ class SpotifyClientCredentials(object):
         if self.token_info and not self.is_token_expired(self.token_info):
             return self.token_info['access_token']
 
-        token_info = self._request_access_token()
+        token_info = await self._request_access_token()
         token_info = self._add_custom_values_to_token_info(token_info)
         self.token_info = token_info
         return self.token_info['access_token']
 
-    def _request_access_token(self):
+    async def _request_access_token(self):
         """Gets client credentials access token """
-        payload = { 'grant_type': 'client_credentials'}
+        payload = {'grant_type': 'client_credentials'}
 
         headers = _make_authorization_headers(self.client_id, self.client_secret)
+        with aiohttp.ClientSession as session:
+            response = await session.post(self.OAUTH_TOKEN_URL, data=payload,
+                                 headers=headers, verify=True, proxies=self.proxies)
+            response: aiohttp.ClientResponse
+            if response.status != 200:
+                raise SpotifyOauthError(response.reason)
+            token_info = await response.json()
 
-        response = requests.post(self.OAUTH_TOKEN_URL, data=payload,
-            headers=headers, verify=True, proxies=self.proxies)
-        if response.status_code != 200:
-            raise SpotifyOauthError(response.reason)
-        token_info = response.json()
         return token_info
 
     def is_token_expired(self, token_info):
@@ -99,7 +98,7 @@ class SpotifyOAuth(object):
     OAUTH_TOKEN_URL = 'https://accounts.spotify.com/api/token'
 
     def __init__(self, client_id, client_secret, redirect_uri,
-            state=None, scope=None, cache_path=None, proxies=None):
+                 state=None, scope=None, cache_path=None, proxies=None):
         '''
             Creates a SpotifyOAuth object
 
@@ -115,9 +114,9 @@ class SpotifyOAuth(object):
         self.client_id = client_id
         self.client_secret = client_secret
         self.redirect_uri = redirect_uri
-        self.state=state
+        self.state = state
         self.cache_path = cache_path
-        self.scope=self._normalize_scope(scope)
+        self.scope = self._normalize_scope(scope)
         self.proxies = proxies
 
     def get_cached_token(self):
@@ -175,7 +174,7 @@ class SpotifyOAuth(object):
         if show_dialog:
             payload['show_dialog'] = True
 
-        urlparams = urllibparse.urlencode(payload)
+        urlparams = urllib.parse.urlencode(payload)
 
         return "%s?%s" % (self.OAUTH_AUTHORIZE_URL, urlparams)
 
@@ -194,7 +193,7 @@ class SpotifyOAuth(object):
     def _make_authorization_headers(self):
         return _make_authorization_headers(self.client_id, self.client_secret)
 
-    def get_access_token(self, code):
+    async def get_access_token(self, code):
         """ Gets the access token for the app given the code
 
             Parameters:
@@ -210,12 +209,14 @@ class SpotifyOAuth(object):
             payload['state'] = self.state
 
         headers = self._make_authorization_headers()
+        with aiohttp.ClientSession() as session:
+            response = await session.post(self.OAUTH_TOKEN_URL, data=payload,
+                                     headers=headers, verify=True, proxies=self.proxies)
 
-        response = requests.post(self.OAUTH_TOKEN_URL, data=payload,
-            headers=headers, verify=True, proxies=self.proxies)
-        if response.status_code != 200:
-            raise SpotifyOauthError(response.reason)
-        token_info = response.json()
+            if response.status != 200:
+                raise SpotifyOauthError(response.reason)
+            token_info = await response.json()
+
         token_info = self._add_custom_values_to_token_info(token_info)
         self._save_token_info(token_info)
         return token_info
@@ -228,22 +229,23 @@ class SpotifyOAuth(object):
         else:
             return None
 
-    def refresh_access_token(self, refresh_token):
-        payload = { 'refresh_token': refresh_token,
+    async def refresh_access_token(self, refresh_token):
+        payload = {'refresh_token': refresh_token,
                    'grant_type': 'refresh_token'}
 
         headers = self._make_authorization_headers()
+        async with aiohttp.ClientSession() as session:
+            response = await session.post(self.OAUTH_TOKEN_URL, data=payload,
+                                     headers=headers,proxy=self.proxies)
+            if response.status != 200:
+                if False:  # debugging code
+                    print('headers', headers)
+                    print('request', response.url)
+                self._warn("couldn't refresh token: code:%d reason:%s" \
+                           % (response.status_code, response.reason))
+                return None
+            token_info = await response.json()
 
-        response = requests.post(self.OAUTH_TOKEN_URL, data=payload,
-            headers=headers, proxies=self.proxies)
-        if response.status_code != 200:
-            if False:  # debugging code
-                print('headers', headers)
-                print('request', response.url)
-            self._warn("couldn't refresh token: code:%d reason:%s" \
-                % (response.status_code, response.reason))
-            return None
-        token_info = response.json()
         token_info = self._add_custom_values_to_token_info(token_info)
         if not 'refresh_token' in token_info:
             token_info['refresh_token'] = refresh_token
@@ -261,4 +263,3 @@ class SpotifyOAuth(object):
 
     def _warn(self, msg):
         print('warning:' + msg, file=sys.stderr)
-

@@ -116,3 +116,4 @@ gen
 /cache/
 /db.db
 /spotipy/
+/config.py
